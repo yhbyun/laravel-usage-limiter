@@ -2,7 +2,7 @@
 
 namespace NabilHassen\LaravelUsageLimiter;
 
-use Illuminate\Support\Carbon;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use InvalidArgumentException;
@@ -35,7 +35,7 @@ class LimitManager
     {
         $cacheStore = config('limit.cache.store');
 
-        $this->cacheExpirationTime = config('limit.cache.expiration_time') ?: \DateInterval::createFromDateString('24 hours');
+        $this->cacheExpirationTime = config('limit.cache.expiration_time');
 
         $this->cacheKey = config('limit.cache.key');
 
@@ -52,31 +52,50 @@ class LimitManager
         $this->cache = Cache::store($cacheStore);
     }
 
-    public function getNextReset(string $limitResetFrequency, string|Carbon $lastReset): Carbon
+    public function getNextReset(string $limitResetFrequency, /*string|Carbon*/ $lastReset): Carbon
     {
-        if ($this->limitClass->getResetFrequencyOptions()->doesntContain($limitResetFrequency)) {
+        if (! $this->limitClass->getResetFrequencyOptions()->contains($limitResetFrequency)) {
             throw new InvalidLimitResetFrequencyValue;
         }
 
         $lastReset = Carbon::parse($lastReset);
 
-        return match ($limitResetFrequency) {
-            'every second' => $lastReset->addSecond(),
-            'every minute' => $lastReset->addMinute(),
-            'every hour' => $lastReset->addHour(),
-            'every day' => $lastReset->addDay(),
-            'every week' => $lastReset->addWeek(),
-            'every two weeks' => $lastReset->addWeeks(2),
-            'every month' => $lastReset->addMonth(),
-            'every quarter' => $lastReset->addQuarter(),
-            'every six months' => $lastReset->addMonths(6),
-            'every year' => $lastReset->addYear(),
-        };
+        switch ($limitResetFrequency) {
+            case 'every second':
+                return $lastReset->addSecond();
+
+            case 'every minute':
+                return $lastReset->addMinute();
+
+            case 'every hour':
+                return $lastReset->addHour();
+
+            case 'every day':
+                return $lastReset->addDay();
+
+            case 'every week':
+                return $lastReset->addWeek();
+
+            case 'every two weeks':
+                return $lastReset->addWeeks(2);
+
+            case 'every month':
+                return $lastReset->addMonth();
+
+            case 'every quarter':
+                return $lastReset->addQuarter();
+
+            case 'every six months':
+                return $lastReset->addMonths(6);
+
+            case 'every year':
+                return $lastReset->addYear();
+        }
     }
 
     public function loadLimits(): void
     {
-        if ($this->limits->isNotEmpty()) {
+        if (! $this->limits->isEmpty()) {
             return;
         }
 
@@ -103,19 +122,22 @@ class LimitManager
 
         $this->loadLimits();
 
-        if (filled($id)) {
-            return $this->limits->firstWhere('id', $id);
+        if ($id) {
+            return $this->limits->where('id', $id)->first();
         }
 
-        return $this
-            ->limits
-            ->where('name', $name)
-            ->when(
-                filled($plan),
-                fn ($q) => $q->where('plan', $plan),
-                fn ($q) => $q->whereNull('plan')
-            )
-            ->first();
+        if ($plan) {
+            return $this
+                ->limits
+                ->where('name', $name)
+                ->where('plan', $plan)
+                ->first();
+        } else {
+            return $this
+                ->limits
+                ->where('name', $name)
+                ->first();
+        }
     }
 
     public function getLimits(): Collection

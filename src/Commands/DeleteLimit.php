@@ -30,20 +30,22 @@ class DeleteLimit extends Command
      */
     public function handle(): void
     {
-        $limits = app(LimitManager::class)
-            ->getLimit(
-                Arr::only($this->arguments(), ['name', 'plan'])
-            )
-            ?->delete();
+        $name = $this->argument('name');
+        $plan = $this->argument('plan');
 
-        if (! $limits) {
+        $limit = app(LimitManager::class)
+            ->getLimit(compact('name', 'plan'));
+
+        if (! $limit) {
             $this->info('No limits found to be deleted.');
 
             return;
         }
 
+        $limit->delete();
+
         $this->info(
-            sprintf('%s %s were deleted successfully.', $limits, Str::of('limit')->plural($limits))
+            sprintf('%s %s were deleted successfully.', $limit, Str::of('limit')->plural($limit))
         );
     }
 }

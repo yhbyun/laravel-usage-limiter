@@ -37,7 +37,7 @@ class CreateLimit extends Command
                 'plan' => $this->argument('plan'),
             ]);
         } catch (Exception $ex) {
-            $this->fail($ex->getMessage());
+            $this->error($ex->getMessage());
         }
 
         $this->info('Limit created successfully.');

@@ -30,7 +30,7 @@ class ServiceProvider extends SupportServiceProvider
             __DIR__.'/../database/migrations' => database_path('migrations'),
         ]);
 
-        Blade::if('limit', function (Model $model, string|Limit $name, ?string $plan = null): bool {
+        Blade::directive('limit', function (Model $model, /*string|Limit*/ $name, ?string $plan = null): bool {
             try {
                 return $model->hasEnoughLimit($name, $plan);
             } catch (\Throwable $th) {
@@ -43,7 +43,7 @@ class ServiceProvider extends SupportServiceProvider
                 CreateLimit::class,
                 DeleteLimit::class,
                 ListLimits::class,
-                ResetLimitUsages::class,
+                // ResetLimitUsages::class,
                 ResetCache::class,
             ]);
         }

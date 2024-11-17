@@ -40,7 +40,7 @@ class Limit extends Model implements LimitContract
         $this->table = config('limit.tables.limits') ?: parent::getTable();
     }
 
-    public static function create(array $data): LimitContract
+    public static function create(array $data = [])
     {
         return static::findOrCreate($data, true);
     }
@@ -52,7 +52,7 @@ class Limit extends Model implements LimitContract
         $limit = app(LimitManager::class)->getLimit($data);
 
         if (! $limit) {
-            return static::query()->create($data);
+            return tap(new static($data), fn ($model) => $model->save());
         }
 
         if ($throw) {
@@ -64,7 +64,7 @@ class Limit extends Model implements LimitContract
 
     protected static function validateArgs(array $data): array
     {
-        if (! Arr::has($data, ['name', 'allowed_amount'])) {
+        if (! Arr::has($data, 'name') || ! Arr::has($data, 'allowed_amount')) {
             throw new InvalidArgumentException('"name" and "allowed_amount" keys do not exist on the array.');
         }
 
@@ -73,21 +73,20 @@ class Limit extends Model implements LimitContract
         }
 
         if (
-            Arr::has($data, ['reset_frequency']) &&
-            filled($data['reset_frequency']) &&
+            Arr::has($data, 'reset_frequency') &&
             array_search($data['reset_frequency'], static::$resetFrequencyPossibleValues) === false
         ) {
             throw new InvalidLimitResetFrequencyValue;
         }
 
-        if (isset($data['plan']) && blank($data['plan'])) {
+        if (isset($data['plan']) && empty($data['plan'])) {
             unset($data['plan']);
         }
 
         return $data;
     }
 
-    public static function findByName(string|LimitContract $name, ?string $plan = null): LimitContract
+    public static function findByName(/*string|LimitContract*/ $name, ?string $plan = null): LimitContract
     {
         if (is_object($name)) {
             return $name;
@@ -102,7 +101,7 @@ class Limit extends Model implements LimitContract
         return $limit;
     }
 
-    public static function findById(int|LimitContract $id): LimitContract
+    public static function findById(/*int|LimitContract*/ $id): LimitContract
     {
         if (is_object($id)) {
             return $id;
@@ -117,7 +116,7 @@ class Limit extends Model implements LimitContract
         return $limit;
     }
 
-    public function incrementBy(float|int $amount = 1.0): bool
+    public function incrementBy(/*float|int*/ $amount = 1.0): bool
     {
         if ($amount <= 0) {
             throw new InvalidArgumentException('"amount" should be greater than 0.');
@@ -128,7 +127,7 @@ class Limit extends Model implements LimitContract
         return $this->save();
     }
 
-    public function decrementBy(float|int $amount = 1.0): bool
+    public function decrementBy(/*float|int*/ $amount = 1.0): bool
     {
         $this->allowed_amount -= $amount;
 
