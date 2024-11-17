@@ -45,6 +45,8 @@ trait HasLimits
             $this->limitsRelationship()->attach([
                 $limit->id => [
                     'used_amount' => $usedAmount,
+                    'extra_amount' => 0,
+                    'extra_used_amount' => 0,
                     'last_reset' => now(),
                 ],
             ]);
@@ -83,14 +85,26 @@ trait HasLimits
     {
         $limit = $this->getModelLimit($name, $plan);
 
-        $newUsedAmount = $limit->pivot->used_amount + $amount;
+        if ($limit->pivot->extra_amount > $limit->pivot->extra_used_amount) {
+            // Use extra amount first
+            $newUsedAmount = $limit->pivot->used_amount;
+            $newExtraUsedAmount = $limit->pivot->extra_used_amount + $amount;
 
-        if ($newUsedAmount <= 0 || ! $this->ensureUsedAmountIsLessThanAllowedAmount($name, $plan, $newUsedAmount)) {
-            throw new UsedAmountShouldBePositiveIntAndLessThanAllowedAmount;
+            if ($newExtraUsedAmount <= 0 || $limit->pivot->extra_amount < $newExtraUsedAmount) {
+                throw new UsedAmountShouldBePositiveIntAndLessThanAllowedAmount;
+            }
+        } else {
+            $newUsedAmount = $limit->pivot->used_amount + $amount;
+            $newExtraUsedAmount = $limit->pivot->extra_used_amount;
+
+            if ($newUsedAmount <= 0 || ! $this->ensureUsedAmountIsLessThanAllowedAmount($name, $plan, $newUsedAmount)) {
+                throw new UsedAmountShouldBePositiveIntAndLessThanAllowedAmount;
+            }
         }
 
         $this->limitsRelationship()->updateExistingPivot($limit->id, [
             'used_amount' => $newUsedAmount,
+            'extra_used_amount' => $newExtraUsedAmount,
         ]);
 
         $this->unloadLimitsRelationship();
@@ -102,14 +116,25 @@ trait HasLimits
     {
         $limit = $this->getModelLimit($name, $plan);
 
-        $newUsedAmount = $limit->pivot->used_amount - $amount;
+        if ($limit->pivot->used_admount > 0) {
+            $newUsedAmount = $limit->pivot->used_amount - $amount;
+            $newExtraUsedAmount = $limit->pivot->extra_used_amount;
 
-        if ($newUsedAmount < 0 || ! $this->ensureUsedAmountIsLessThanAllowedAmount($name, $plan, $newUsedAmount)) {
-            throw new UsedAmountShouldBePositiveIntAndLessThanAllowedAmount;
+            if ($newUsedAmount <= 0 || ! $this->ensureUsedAmountIsLessThanAllowedAmount($name, $plan, $newUsedAmount)) {
+                throw new UsedAmountShouldBePositiveIntAndLessThanAllowedAmount;
+            }
+        } else  {
+            $newUsedAmount = $limit->pivot->used_amount;
+            $newExtraUsedAmount = $limit->pivot->extra_used_amount - $amount;
+
+            if ($newExtraUsedAmount <= 0 || $newExtraUsedAmount > $limit->pivot->extra_amount) {
+                throw new UsedAmountShouldBePositiveIntAndLessThanAllowedAmount;
+            }
         }
 
         $this->limitsRelationship()->updateExistingPivot($limit->id, [
             'used_amount' => $newUsedAmount,
+            'extra_used_amount' => $newExtraUsedAmount,
         ]);
 
         $this->unloadLimitsRelationship();
@@ -134,9 +159,10 @@ trait HasLimits
     {
         $limit = $this->getModelLimit($name, $plan);
 
-        $usedAmount = $limit->pivot->used_amount;
+        $allowedAmount = $limit->allowed_amount + $limit->pivot->extra_amount;
+        $usedAmount = $limit->pivot->used_amount + $limit->pivot->extra_used_amount;
 
-        return $limit->allowed_amount > $usedAmount;
+        return $allowedAmount > $usedAmount;
     }
 
     public function ensureUsedAmountIsLessThanAllowedAmount(/*string|LimitContract*/ $name, ?string $plan, /*float|int*/ $usedAmount): bool
@@ -150,14 +176,24 @@ trait HasLimits
     {
         $limit = $this->getModelLimit($name, $plan);
 
-        return $limit->pivot->used_amount;
+        return $limit->allowed_amount + $limit->pivot->extra_amount;
+    }
+
+    public function usedLimit(/*string|LimitContract*/ $name, ?string $plan = null): float
+    {
+        $limit = $this->getModelLimit($name, $plan);
+
+        return $limit->pivot->used_amount + $limit->pivot->extra_used_amount;
     }
 
     public function remainingLimit(/*string|LimitContract*/ $name, ?string $plan = null): float
     {
         $limit = $this->getModelLimit($name, $plan);
 
-        return $limit->allowed_amount - $limit->pivot->used_amount;
+        $allowedAmount = $limit->allowed_amount + $limit->pivot->extra_amount;
+        $usedAmount = $limit->pivot->used_amount + $limit->pivot->extra_used_amount;
+
+        return $allowedAmount - $usedAmount;
     }
 
     public function getModelLimit(/*string|LimitContract*/ $name, ?string $plan = null): LimitContract
@@ -210,11 +246,14 @@ trait HasLimits
         return
         $modelLimits
             ->mapWithKeys(function (LimitContract $modelLimit) {
+                $allowedAmount = $modelLimit->allowed_amount + $modelLimit->pivot->extra_amount;
+                $usedAmount = $modelLimit->pivot->used_amount + $modelLimit->pivot->extra_used_amount;
+
                 return [
                     $modelLimit->name => [
-                        'allowed_amount' => $modelLimit->allowed_amount,
-                        'used_amount' => $modelLimit->pivot->used_amount,
-                        'remaining_amount' => $modelLimit->allowed_amount - $modelLimit->pivot->used_amount,
+                        'allowed_amount' => $allowedAmount,
+                        'used_amount' => $usedAmount,
+                        'remaining_amount' => $allowedAmount - $usedAmount,
                     ],
                 ];
             })->all();
