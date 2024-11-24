@@ -155,6 +155,35 @@ trait HasLimits
         return true;
     }
 
+    public function increaseExtraLimit(/*string|LimitContract*/ $name, ?string $plan = null, /*float|int*/ $amount): bool
+    {
+        $limit = $this->getModelLimit($name, $plan);
+
+        $newExtraAmount = $limit->pivot->extra_amount + $amount;
+
+        $this->limitsRelationship()->updateExistingPivot($limit->id, [
+            'extra_amount' => $newExtraAmount,
+        ]);
+
+        $this->unloadLimitsRelationship();
+
+        return true;
+    }
+
+    public function clearExtraLimit(/*string|LimitContract*/ $name, ?string $plan = null): bool
+    {
+        $limit = $this->getModelLimit($name, $plan);
+
+        $this->limitsRelationship()->updateExistingPivot($limit->id, [
+            'extra_amount' => 0,
+            'extra_used_amount' => 0,
+        ]);
+
+        $this->unloadLimitsRelationship();
+
+        return true;
+    }
+
     public function hasEnoughLimit(/*string|LimitContract*/ $name, ?string $plan = null): bool
     {
         $limit = $this->getModelLimit($name, $plan);
